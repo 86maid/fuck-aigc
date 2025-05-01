@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fuck AIGC</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chat {
+      flex: 1 0 80%;
+      overflow-y: auto;
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    .input-container {
+      flex: 1 0 20%;
+      display: flex;
+      flex-direction: column;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 100px;
+    }
+
+    #input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-height: 40px;
+      max-height: 200px;
+      overflow-y: auto;
+      resize: none;
+      box-sizing: border-box;
+    }
+
+    #input::-webkit-scrollbar {
+      display: none;
+    }
+
+    .button-group {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .assistant {
+      text-align: left;
+      margin: 5px 0;
+      color: green;
+    }
+
+    .user {
+      text-align: right;
+      margin: 5px 0;
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chat"></div>
+  <div class="input-container">
+    <div id="input" contenteditable onkeydown="if(event.key == 'Enter'&&!event.shiftKey){event.preventDefault();send()}"
+      onpaste="event.preventDefault();document.execCommand('insertText', false, event.clipboardData.getData('text/plain'))">
+    </div>
+    <div class="button-group">
+      <button onclick="send()">发送</button>
+      <button onclick="config()">设置</button>
+    </div>
+  </div>
+</body>
+
+<script>
+  let prompt = `
+      请你扮演一位资深的学术降重与口语化润色专家，针对下面的内容同时完成两项任务：  
+      1. **精准降重**：在不改变原文核心观点和专业术语的前提下，通过同义替换、句式重构、长句拆分或合并等手段，显著降低与原文的文字相似度；  
+      2. **口语化润色**：全篇使用自然、亲切的口语化表达，给读者一种轻松流畅的阅读体验。  
+
+      为了确保效果，请务必严格遵循以下多重要求：
+
+      1. **保留核心**:
+        - 核心概念、逻辑结构以及专业术语必须保留，不能曲解或遗漏；  
+        - 章节编号、标题格式按原文保留。  
+
+      2. **降重方式**:
+        - 使用同义词替换、调整语序、拆分或合并长句；  
+        - 精简赘余，删掉多余修饰；  
+        - 避免三词以上连续照搬原文。  
+
+      3. **口语化润色（多次强调）**:
+        - ⚡⚡**请务必**使用口语化表达，让文字“有声有色”、读起来像在和朋友聊天；  
+        - ✨**记住**：用口语化润色，不要太生硬，像给论文加点“人情味”；  
+        - 🔄**再次强调**：全篇要口语化，让专业内容不再晦涩，增强可读性；  
+        - 🗣️用“你”、“我们”“咱们”这样的代词适度亲切化；  
+        - 👍使用比喻、拟人等修辞，让术语听起来更“接地气”。  
+
+      4. **学术严谨**:   
+        - 虽然口语化，但一定要保持内容准确、逻辑严密；  
+        - 避免口语化过度导致信息丢失或歧义。  
+
+      5. **相似度控制**:
+        - 整体相似度降至 30% 以下；  
+        - 不要有三词以上与原文一致的片段。
+  `;
+
+  let cfg = JSON.parse(localStorage.getItem("cfg")) || {
+    "api_base": "https://api.siliconflow.cn/v1/chat/completions",
+    "api_key": "",
+    "model": "deepseek-ai/DeepSeek-R1",
+    "temperature": 0,
+    "max_tokens": 16384,
+    "stream": true,
+    "messages": [
+      {
+        "role": "system",
+        "content": prompt,
+      }
+    ]
+  };
+
+  function render() {
+    chat.innerHTML = cfg.messages
+      .filter(v => v.role != "system")
+      .map(v => `<div class="${v.role}">${v.content}</div>`)
+      .join("");
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function config() {
+    const overlay = Object.assign(document.createElement("div"), {
+      style: "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;"
+    });
+
+    const modal = Object.assign(document.createElement("div"), {
+      style: "position:fixed;text-align:right;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;"
+    });
+
+    const textarea = Object.assign(document.createElement("textarea"), {
+      value: JSON.stringify(cfg, null, 2),
+      style: "width:1000px;height:500px;margin-bottom:10px;border:1px solid #ccc;display:block;resize:none;"
+    });
+
+    const confirm = Object.assign(document.createElement("button"), {
+      innerText: "保存配置",
+      onclick: () => {
+        try {
+          cfg = JSON.parse(textarea.value);
+          localStorage.setItem("cfg", textarea.value);
+          overlay.remove();
+          render();
+        } catch (v) {
+          alert("JSON 格式错误: " + v.message);
+        }
+      }
+    });
+
+    const cancel = Object.assign(document.createElement("button"), {
+      innerText: "取消",
+      onclick: () => {
+        overlay.remove();
+      }
+    });
+
+    const buttonGroup = Object.assign(document.createElement("div"), {
+      style: "display:flex;gap:10px;justify-content:flex-end;"
+    });
+
+    let downTarget = null;
+
+    overlay.addEventListener("mousedown", v => {
+      downTarget = v.target;
+    });
+
+    modal.onclick = v => v.stopPropagation();
+    modal.append(textarea);
+    buttonGroup.append(confirm, cancel);
+    modal.append(buttonGroup)
+    overlay.append(modal);
+    document.body.append(overlay);
+  }
+
+  async function send() {
+    if (cfg.api_key == "") {
+      alert("请先设置 api key");
+      return
+    }
+
+    const input = document.querySelector("#input");
+
+    if (!input.innerText.trim()) return;
+    if (document.querySelector("button").disabled) return;
+
+    cfg.messages.push({ role: "user", content: input.innerText });
+    input.innerText = "";
+    document.querySelectorAll("button").forEach(v => v.disabled = true);
+    render();
+
+    try {
+      cfg.messages.push({ role: "assistant", content: "" });
+      render();
+
+      const response = await fetch(cfg.api_base, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cfg.api_key}`
+        },
+        body: JSON.stringify({ ...cfg })
+      });
+
+      if (!response.ok) throw new Error(`请求失败: ${await response.text()}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const assistantMessage = cfg.messages[cfg.messages.length - 1];
+
+      let flag = true
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunks = decoder.decode(value).split("\n\n");
+
+        for (const chunk of chunks) {
+          const line = chunk.trim();
+          if (!line || line == "data: [DONE]") continue;
+
+          try {
+            const data = JSON.parse(line.replace("data: ", ""));
+            const reasoning_content = data.choices[0].delta.reasoning_content;
+            const content = data.choices[0].delta.content || "";
+
+            if (reasoning_content == undefined && flag) {
+              assistantMessage.content = ""
+              flag = false;
+            };
+
+            assistantMessage.content += reasoning_content || content;
+            render();
+          } catch (v) {
+            console.error("JSON 解析错误:", v);
+          }
+        }
+      }
+    } catch (v) {
+      alert(v.message);
+      cfg.messages.pop();
+      cfg.messages.pop();
+    } finally {
+      document.querySelectorAll("button").forEach(v => v.disabled = false);
+      render();
+    }
+  }
+
+  render();
+</script>
+
+</html>
