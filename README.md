@@ -6,4 +6,4 @@
 
 # 快速开始
 
-双击运行
+[在线运行](https://86maid.github.io/fuck-aigc/index.html)
